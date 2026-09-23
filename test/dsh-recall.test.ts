@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { filterDshRecallNodes, insertDshRecallBeforeCurrentUser } from "../src/format/dsh-recall.ts";
+import { graphMemorySource } from "../src/format/dsh-source.ts";
 
 function node(id: string, sourceSessions: string[]) {
   return { id, sourceSessions, status: "active" } as any;
@@ -8,9 +9,9 @@ function node(id: string, sourceSessions: string[]) {
 
 describe("DSH recall visibility", () => {
   it("places recalled history before the live user instruction", () => {
-    const system = { role: "system", source: { kind: "plugin" } };
+    const system = { role: "system", source: { kind: "system-prompt" } };
     const current = { role: "user", source: { kind: "user" }, content: "do the task" };
-    const recall = { role: "user", source: { kind: "plugin", plugin: "graph-memory" } };
+    const recall = { role: "user", source: graphMemorySource() };
     expect(insertDshRecallBeforeCurrentUser([system, current], recall)).toEqual([system, recall, current]);
   });
 

@@ -74,12 +74,12 @@ Graph Memory 接管的是**发给模型的历史表面**，不会删除 DSH 的�
 Node.js 22.13+ · 不 fork DSH · 在 npm `1.6` 发布完成前，请安装已经固定的 GitHub 版本：
 
 ```bash
-npx @deepseek-ai/dsh plugin --profile web add github:adoresever/graph-memory#v1.6.0-beta.16
+npx @deepseek-ai/dsh plugin --profile web add github:adoresever/graph-memory#v1.6.0-beta.16p1
 npx @deepseek-ai/dsh --profile web --dump-config
 npx @deepseek-ai/dsh web
 ```
 
-npm registry 当前仍是旧版 `1.5.8`，不要用它验证 DSH。待 `npm view graph-memory version` 返回 `1.6.0-beta.16` 或更新版本后，才改用 `npx @deepseek-ai/dsh plugin --profile web add graph-memory`。
+npm registry 当前仍是旧版 `1.5.8`，不要用它验证 DSH。待 `npm view graph-memory version` 返回 `1.6.0-beta.16p1` 或更新版本后，才改用 `npx @deepseek-ai/dsh plugin --profile web add graph-memory`。
 
 在 **Settings → Plugins** 确认 graph-memory/dsh 已启用。默认数据库位于 $DSH_HOME/graph-memory/graph-memory.db，通常是 ~/.dsh/graph-memory/graph-memory.db。
 
@@ -160,8 +160,9 @@ openclaw gateway restart
 
 ## 验证与边界
 
-当前 beta 1.6.0-beta.16 已通过 **138/138 自动化测试**、两套 TypeScript 构建、npm 包验证，并用最新 DSH 源码完成真实 20 轮运行。
+当前 beta 1.6.0-beta.16p1 已通过 **144/144 自动化测试**、两套 TypeScript 构建、npm 包验证，并用最新 DSH 源码完成真实 20 轮运行。
 
+- 1.6.0-beta.16p1 修复 DSH 0.1.7 会话格式 V4 的写盘校验：落库消息改用 producer-owned 的 source.kind（plugin:graph-memory），不再写 V3 时代的 `{ kind: "plugin", plugin: "graph-memory" }` 包装。此前只要滚动压缩、工具轨迹归档或召回快照注入写下一行，整轮回合就会以 `format v4 message requires a producer-owned source kind` 失败。
 - 结构化抽取仍依赖模型遵守合同：最新实测 20/20 成功；未来若失败，数据保持隔离且不会阻塞前台对话。
 - 召回数量由 Top-K 限制。聚焦问题实测成功；一次包含多个主题的宽查询可能需要提高 Top-K 或拆开提问。
 - 当前发布的是工程工作流实测，不是 LoCoMo/LongMemEval 的通用分数。

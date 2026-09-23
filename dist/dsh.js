@@ -12,6 +12,7 @@ import { Extractor } from "./src/extractor/extract.js";
 import { GRAPH_EXTRACTION_TOOL, GRAPH_EXTRACTION_TOOL_NAME, } from "./src/extractor/contract.js";
 import { Recaller } from "./src/recaller/recall.js";
 import { assembleContext } from "./src/format/assemble.js";
+import { graphMemorySource, isGraphMemorySource, } from "./src/format/dsh-source.js";
 import { replaceDshArchivedPrefix, selectDshRollingCompactionRange, } from "./src/format/dsh-compaction.js";
 import { replaceDshCompletedTurnTrace, projectDshCompletedTurnMemory, selectDshCompletedTurnTraceRange, } from "./src/format/dsh-turn-projection.js";
 import { filterDshRecallMemories, filterDshRecallNodes, insertDshRecallBeforeCurrentUser, } from "./src/format/dsh-recall.js";
@@ -23,7 +24,6 @@ import { messageRetentionPolicyRevision, normalizeMessageRetentionPolicy, runMes
 export const name = "graph-memory-dsh";
 export const inject = ["tools", "llm", "systemPrompt", "agentLoop", "agents", "sessions", "credentials", "tokenMeter"];
 const HOST = "dsh";
-const PLUGIN = "graph-memory";
 function sessionKey(id) {
     return `${HOST}:${String(id)}`;
 }
@@ -197,7 +197,10 @@ export function apply(ctx, input = {}) {
                         id: randomUUID(),
                         role: "user",
                         content: [{ type: "text", text: user }],
-                        source: { kind: "plugin", plugin: PLUGIN },
+                        // Request-only context: DSH never persists `llm.stream` input, so this
+                        // source is not subject to V4 durable admission. It still uses the
+                        // shared producer shape so no retired wrapper survives anywhere.
+                        source: graphMemorySource(),
                     }],
             });
             for await (const chunk of chunks) {
@@ -531,9 +534,10 @@ export function apply(ctx, input = {}) {
             const visibleMessageIds = new Set(surfaceSeqs.map(seq => `${HOST}:${key}:${String(seq)}`));
             const hasArchivedHistory = surfaceSeqs.some(seq => {
                 const event = immutableEvents?.[seq];
+                // Accept both the producer-owned kind and the retired V3 wrapper so a
+                // history archived before the V4 source fix is still recognized.
                 return event?.type === "user/message"
-                    && event?.data?.source?.kind === "plugin"
-                    && event?.data?.source?.plugin === PLUGIN
+                    && isGraphMemorySource(event?.data?.source)
                     && event?.surfaceOp?.op === "replace";
             });
             const recalledNodes = filterDshRecallNodes(recalled.nodes, getNodeSources(db, recalled.nodes.map(node => node.id)), currentSession, visibleMessageIds, hasArchivedHistory);
@@ -561,12 +565,15 @@ export function apply(ctx, input = {}) {
             const recalledMessage = {
                 id: randomUUID(),
                 role: "user",
-                source: {
-                    kind: "plugin",
-                    plugin: PLUGIN,
+                // This message is returned through the pre-step decision, and DSH's
+                // agent loop durably appends every `decision.messages` entry
+                // (`session.append("user/message", message, { surfaceOp: "append" })`).
+                // It therefore passes V4 durable admission and must use the
+                // producer-owned source kind, not the retired V3 wrapper.
+                source: graphMemorySource({
                     form: "snapshot",
                     sections: [{ name: "graph-memory:recall", text }],
-                },
+                }),
                 content: [{ type: "text", text }],
             };
             // Historical memory is context for the live request, never a newer

@@ -74,12 +74,12 @@ The graph is a **navigation layer**, not a replacement for evidence. `TASK`, `SK
 Node.js `22.13+` · no DSH fork · until npm `1.6` is published, install the pinned GitHub release:
 
 ```bash
-npx @deepseek-ai/dsh plugin --profile web add github:adoresever/graph-memory#v1.6.0-beta.16
+npx @deepseek-ai/dsh plugin --profile web add github:adoresever/graph-memory#v1.6.0-beta.16p1
 npx @deepseek-ai/dsh --profile web --dump-config
 npx @deepseek-ai/dsh web
 ```
 
-The npm registry still serves the old `1.5.8`; do not use it to validate DSH. Switch to `npx @deepseek-ai/dsh plugin --profile web add graph-memory` only after `npm view graph-memory version` reports `1.6.0-beta.16` or newer.
+The npm registry still serves the old `1.5.8`; do not use it to validate DSH. Switch to `npx @deepseek-ai/dsh plugin --profile web add graph-memory` only after `npm view graph-memory version` reports `1.6.0-beta.16p1` or newer.
 
 Confirm that `graph-memory/dsh` is active under **Settings → Plugins**. The default database is `$DSH_HOME/graph-memory/graph-memory.db`, normally `~/.dsh/graph-memory/graph-memory.db`.
 
@@ -160,8 +160,9 @@ The repository also contains an experimental read-only DSH Pro Lite Host + Clien
 
 ## Verification and limits
 
-Current beta `1.6.0-beta.16` passes **138/138 automated tests**, both TypeScript builds, npm package verification, and a real 20-turn run against the latest DSH source.
+Current beta `1.6.0-beta.16p1` passes **144/144 automated tests**, both TypeScript builds, npm package verification, and a real 20-turn run against the latest DSH source.
 
+- `1.6.0-beta.16p1` fixes DSH 0.1.7 session format V4 admission: durable messages now carry the producer-owned `source.kind` (`plugin:graph-memory`) instead of the retired V3 `{ kind: "plugin", plugin: "graph-memory" }` wrapper, which previously aborted a whole turn with `format v4 message requires a producer-owned source kind` as soon as rolling compaction, tool-trace projection, or recall snapshot injection wrote a row.
 - Structured extraction still depends on model contract compliance: the latest run succeeded 20/20 times; any future failure stays quarantined and never blocks the foreground conversation.
 - Recall is bounded by configurable Top-K. Focused probes succeeded; one broad multi-topic query can require a larger Top-K or separate questions.
 - The published run is an engineering workload, not a universal LoCoMo/LongMemEval score.

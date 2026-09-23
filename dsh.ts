@@ -38,6 +38,10 @@ import {
 import { Recaller } from "./src/recaller/recall.ts";
 import { assembleContext } from "./src/format/assemble.ts";
 import {
+  graphMemorySource,
+  isGraphMemorySource,
+} from "./src/format/dsh-source.ts";
+import {
   replaceDshArchivedPrefix,
   selectDshRollingCompactionRange,
 } from "./src/format/dsh-compaction.ts";
@@ -138,7 +142,6 @@ interface DshContext {
 }
 
 const HOST = "dsh";
-const PLUGIN = "graph-memory";
 function sessionKey(id: unknown): string {
   return `${HOST}:${String(id)}`;
 }
@@ -321,7 +324,10 @@ export function apply(ctx: DshContext, input: Config = {}): void {
           id: randomUUID(),
           role: "user",
           content: [{ type: "text", text: user }],
-          source: { kind: "plugin", plugin: PLUGIN },
+          // Request-only context: DSH never persists `llm.stream` input, so this
+          // source is not subject to V4 durable admission. It still uses the
+          // shared producer shape so no retired wrapper survives anywhere.
+          source: graphMemorySource(),
         }],
       });
       for await (const chunk of chunks) {
@@ -680,9 +686,10 @@ export function apply(ctx: DshContext, input: Config = {}): void {
       const visibleMessageIds = new Set(surfaceSeqs.map(seq => `${HOST}:${key}:${String(seq)}`));
       const hasArchivedHistory = surfaceSeqs.some(seq => {
         const event = immutableEvents?.[seq];
+        // Accept both the producer-owned kind and the retired V3 wrapper so a
+        // history archived before the V4 source fix is still recognized.
         return event?.type === "user/message"
-          && event?.data?.source?.kind === "plugin"
-          && event?.data?.source?.plugin === PLUGIN
+          && isGraphMemorySource(event?.data?.source)
           && event?.surfaceOp?.op === "replace";
       });
       const recalledNodes = filterDshRecallNodes(
@@ -718,12 +725,15 @@ export function apply(ctx: DshContext, input: Config = {}): void {
       const recalledMessage = {
         id: randomUUID(),
         role: "user",
-        source: {
-          kind: "plugin",
-          plugin: PLUGIN,
+        // This message is returned through the pre-step decision, and DSH's
+        // agent loop durably appends every `decision.messages` entry
+        // (`session.append("user/message", message, { surfaceOp: "append" })`).
+        // It therefore passes V4 durable admission and must use the
+        // producer-owned source kind, not the retired V3 wrapper.
+        source: graphMemorySource({
           form: "snapshot",
           sections: [{ name: "graph-memory:recall", text }],
-        },
+        }),
         content: [{ type: "text", text }],
       };
       // Historical memory is context for the live request, never a newer
